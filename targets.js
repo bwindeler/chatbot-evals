@@ -16,10 +16,14 @@ const BUILTIN_TARGETS = [
     name: "ChatGPT",
     tier: "free",
     url: "https://chatgpt.com/",
-    inputSelector: "#prompt-textarea",
-    sendSelector: 'button[data-testid="send-button"]',
+    // Logged-out chatgpt.com now serves the "lightweight web" shell (web-mobile-prod)
+    // with renamed selectors. Keep the legacy desktop selectors as fallbacks in case
+    // the classic React app is served (e.g. when signed in).
+    inputSelector: '#mobile-composer-prompt, textarea[name="prompt"], #prompt-textarea',
+    sendSelector: 'button[data-composer-submit], button[data-testid="send-button"]',
     // .markdown uses innerText-hostile CSS in dark mode; textContent works fine
-    responseSelector: '[data-message-author-role="assistant"] .markdown',
+    responseSelector:
+      '[data-message-role="assistant"] [data-assistant-markdown], [data-message-author-role="assistant"] .markdown',
     // Logged-out UI shows no model name; fall back to a static label.
     modelDefault: "default",
   },

@@ -21,7 +21,8 @@
   // ── Response selectors (generic fallback chain) ───────────────────────────
 
   const RESPONSE_SELECTORS = [
-    // ChatGPT
+    // ChatGPT — new lightweight-web shell, then legacy desktop app
+    '[data-message-role="assistant"] [data-assistant-markdown]',
     '[data-message-author-role="assistant"] .markdown',
     '[data-message-author-role="assistant"]',
     // Claude.ai (font-claude-response excludes sr-only prefix text)
@@ -35,18 +36,21 @@
 
   // ── Element finders ───────────────────────────────────────────────────────
 
-  function findInput(selector) {
-    if (selector) return document.querySelector(selector);
-    // Per-site: replace these heuristics with the exact selector for the target.
+  function findInputHeuristic() {
     return (
       document.querySelector('[contenteditable="true"]:not([aria-readonly="true"])') ||
       document.querySelector("textarea:not([disabled]):not([readonly])")
     );
   }
 
-  function findSendButton(selector) {
-    if (selector) return document.querySelector(selector);
-    // Per-site: replace with the exact send-button selector.
+  function findInput(selector) {
+    // Prefer the target's explicit selector, but fall back to the heuristic if the
+    // site's DOM drifted and the selector no longer matches (e.g. a renamed input).
+    if (selector) return document.querySelector(selector) || findInputHeuristic();
+    return findInputHeuristic();
+  }
+
+  function findSendButtonHeuristic() {
     return (
       document.querySelector('button[data-testid*="send"]') ||
       document.querySelector('button[aria-label*="send" i]') ||
@@ -55,24 +59,41 @@
     );
   }
 
+  function findSendButton(selector) {
+    if (selector) return document.querySelector(selector) || findSendButtonHeuristic();
+    return findSendButtonHeuristic();
+  }
+
   // ── Response text extraction ──────────────────────────────────────────────
 
   function getLastResponseText(selector) {
+    // Returns { matched, text }: `matched` is whether the selector hit any
+    // element at all, `text` its trimmed textContent (null if empty). The two
+    // are distinct — an element that exists but is momentarily empty (early
+    // streaming) matched but has no text yet, and must NOT trigger a fallback.
     const trySelector = (sel) => {
       // Strip :last-of-type — querySelectorAll + last index is more reliable.
       const stripped = sel.replace(/:last-of-type/g, "");
       const els = document.querySelectorAll(stripped);
-      if (!els.length) return null;
+      if (!els.length) return { matched: false, text: null };
       // Use textContent instead of innerText — innerText requires full layout
       // and returns empty in background/inactive tabs on some sites.
       const text = els[els.length - 1].textContent.trim();
-      return text || null;
+      return { matched: true, text: text || null };
     };
 
-    if (selector) return trySelector(selector);
+    // Prefer the target's explicit selector. Only fall back to the generic
+    // chain if it matches NO element at all (i.e. the site's DOM drifted) —
+    // mirroring the resilience of findInput/findSendButton. A selector that
+    // matches an empty element (mid-stream) stays on the explicit selector so
+    // we don't scrape stale prompt/UI text via the generic `article` catch-all.
+    if (selector) {
+      const { matched, text } = trySelector(selector);
+      if (matched) return text;
+    }
 
     for (const sel of RESPONSE_SELECTORS) {
-      const text = trySelector(sel);
+      const { text } = trySelector(sel);
       if (text) return text;
     }
     return null;

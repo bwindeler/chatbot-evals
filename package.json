@@ -1,6 +1,6 @@
 {
   "name": "strawbery",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Batch evaluation harness for multi-target AI chatbot research",
   "private": true,
   "license": "MIT",
